@@ -764,6 +764,22 @@
     nextOrEnd();
   }
 
+  function registerWrongKey(clickedIdx) {
+    clearActive();
+    state = 'between';
+
+    results.push({ ms: null, hit: false, wrong: true, round });
+    addHistDot(false, null);
+
+    // Flash clicked cell red, correct cell briefly visible
+    cells[clickedIdx].classList.add('missed');
+    setTimeout(() => cells[clickedIdx].classList.remove('missed'), 500);
+
+    flashTime('Fout vakje! 0 pts', 'var(--accent2)');
+    updateTopBar();
+    nextOrEnd();
+  }
+
   function registerMiss() {
     clearActive();
     state = 'between';
@@ -957,8 +973,9 @@
       cancelAnimationFrame(timerAnim);
       registerHit(ms);
     } else {
-      cells[idx].style.background = '#2a0a15';
-      setTimeout(() => { cells[idx].style.background = ''; }, 200);
+      clearTimeout(missTimer);
+      cancelAnimationFrame(timerAnim);
+      registerWrongKey(idx);
     }
   });
 
@@ -973,9 +990,9 @@
         cancelAnimationFrame(timerAnim);
         registerHit(ms);
       } else {
-        // Wrong cell — no penalty but a quick flash
-        cell.style.background = '#2a0a15';
-        setTimeout(() => { cell.style.background = ''; }, 200);
+        clearTimeout(missTimer);
+        cancelAnimationFrame(timerAnim);
+        registerWrongKey(i);
       }
     });
   });
