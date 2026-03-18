@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reactie Grid — AI Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #1e1e2e;
+      --accent: #00ffaa;
+      --accent2: #ff3e6c;
+      --accent3: #ffe94a;
+      --text: #e8e8f0;
+      --muted: #5a5a7a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 4rem;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,255,170,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,170,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 640px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .badge {
+      display: inline-block;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.25rem 0.75rem;
+      border-radius: 2px;
+      margin-bottom: 0.8rem;
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 5vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    h1 span { color: var(--accent); }
+
+    .subtitle {
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      margin-top: 0.4rem;
+    }
+
+    /* Top bar */
+    .top-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .info-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      text-align: center;
+    }
+
+    .info-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.55rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+
+    .info-value {
+      font-family: 'Space Mono', monospace;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .info-value.green { color: var(--accent); }
+    .info-value.red   { color: var(--accent2); }
+    .info-value.yellow{ color: var(--accent3); }
+
+    /* Progress bar */
+    .progress-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      height: 6px;
+      margin-bottom: 1.2rem;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #00cc88);
+      border-radius: 4px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    /* Status */
+    #status-text {
+      text-align: center;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 1.2rem;
+      min-height: 1.4em;
+    }
+
+    /* Grid */
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 1.2rem;
+      max-width: 320px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cell {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      cursor: pointer;
+      transition: transform 0.08s, box-shadow 0.08s;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 5px 6px;
+    }
+
+    .cell-key {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.55rem;
+      color: var(--muted);
+      line-height: 1;
+      pointer-events: none;
+      transition: color 0.15s;
+      z-index: 2;
+    }
+
+    .cell.active .cell-key  { color: rgba(0,30,15,0.5); }
+    .cell.hit .cell-key     { color: rgba(0,0,0,0.4); }
+    .cell.missed .cell-key  { color: rgba(255,255,255,0.4); }
+
+    .cell::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 6px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .cell:hover { transform: scale(0.97); }
+
+    .cell.active {
+      background: radial-gradient(circle at 40% 35%, #1aff8a, #00bb66);
+      border-color: transparent;
+      box-shadow: 0 0 28px rgba(0,255,138,0.55), 0 0 60px rgba(0,255,138,0.2);
+      animation: cell-pop 0.18s ease-out;
+      cursor: pointer;
+    }
+
+    .cell.missed {
+      background: radial-gradient(circle at 40% 35%, #ff5577, #bb2244);
+      border-color: transparent;
+      box-shadow: 0 0 20px rgba(255,62,108,0.4);
+      animation: cell-shake 0.3s ease-out;
+    }
+
+    .cell.hit {
+      background: radial-gradient(circle at 40% 35%, #ffe94a, #cc9900);
+      border-color: transparent;
+      box-shadow: 0 0 20px rgba(255,233,74,0.4);
+      animation: cell-pop 0.12s ease-out;
+    }
+
+    @keyframes cell-pop {
+      0%   { transform: scale(0.88); }
+      60%  { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes cell-shake {
+      0%,100% { transform: translateX(0); }
+      25%      { transform: translateX(-5px); }
+      75%      { transform: translateX(5px); }
+    }
+
+    /* Time bar inside active cell */
+    .cell-timer {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 4px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 0 0 8px 8px;
+      width: 100%;
+      transform-origin: left;
+      transform: scaleX(1);
+    }
+
+    /* Reaction time flash */
+    #time-flash {
+      text-align: center;
+      font-family: 'Space Mono', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+      min-height: 2.5rem;
+      margin-bottom: 0.8rem;
+      transition: color 0.2s;
+    }
+
+    /* History dots */
+    #history-row {
+      display: flex;
+      gap: 5px;
+      justify-content: center;
+      flex-wrap: wrap;
+      min-height: 26px;
+      margin-bottom: 1.2rem;
+    }
+
+    .hdot {
+      width: 26px; height: 26px;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.5rem;
+      font-weight: 700;
+      transition: transform 0.2s;
+    }
+
+    .hdot:hover { transform: scale(1.2); }
+    .hdot-hit    { background: rgba(0,255,170,0.12); color: var(--accent);  border: 1px solid var(--accent); }
+    .hdot-miss   { background: rgba(255,62,108,0.12); color: var(--accent2); border: 1px solid var(--accent2); }
+    .hdot-slow   { background: rgba(255,233,74,0.12); color: var(--accent3); border: 1px solid var(--accent3); }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+
+    #start-btn {
+      background: var(--accent);
+      color: #001a0d;
+      border: none;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 0.85rem 2.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      box-shadow: 0 0 30px rgba(0,255,170,0.3);
+      transition: all 0.15s;
+    }
+
+    #start-btn:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(0,255,170,0.5); }
+    #start-btn:active { transform: translateY(0); }
+    #start-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    #reset-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      padding: 0.85rem 1.4rem;
+      border-radius: 6px;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      transition: all 0.15s;
+      display: none;
+    }
+
+    #reset-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+    #reset-btn.visible { display: inline-block; }
+
+    /* AI box */
+    #ai-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 1.4rem;
+      display: none;
+    }
+
+    #ai-box.visible { display: block; animation: slide-in 0.35s ease-out; }
+
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .ai-header {
+      display: flex; align-items: center; gap: 0.6rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .ai-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: blink 1.2s infinite;
+    }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    .ai-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    #ai-text {
+      font-size: 0.92rem;
+      line-height: 1.75;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+
+    .typing::after {
+      content: '▋';
+      animation: blink 0.7s infinite;
+      color: var(--accent);
+    }
+
+    /* Difficulty indicator */
+    #diff-bar {
+      display: flex;
+      gap: 4px;
+      justify-content: center;
+      margin-bottom: 0.6rem;
+    }
+
+    .diff-pip {
+      width: 18px; height: 5px;
+      border-radius: 2px;
+      background: var(--border);
+      transition: background 0.3s;
+    }
+    .diff-pip.on { background: var(--accent3); }
+
+    /* End screen overlay */
+    #end-screen {
+      display: none;
+      text-align: center;
+      padding: 1rem 0;
+    }
+
+    #end-screen.visible { display: block; animation: slide-in 0.4s ease-out; }
+
+    .end-score {
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(3rem, 10vw, 5rem);
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .end-label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+    }
+
+    footer {
+      margin-top: 2.5rem;
+      text-align: center;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="badge">AI Demo — MBO les</div>
+    <h1>Reactie<span>Grid</span></h1>
+    <p class="subtitle">// klik het juiste vakje zo snel mogelijk</p>
+  </header>
+
+  <!-- Top stats -->
+  <div class="top-bar">
+    <div class="info-card">
+      <div class="info-label">Ronde</div>
+      <div class="info-value" id="stat-round">0 / 10</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">Score</div>
+      <div class="info-value green" id="stat-score">0</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">Gem. tijd</div>
+      <div class="info-value yellow" id="stat-avg">—</div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+
+  <!-- Difficulty pips -->
+  <div id="diff-bar">
+    <div class="diff-pip" id="pip0"></div>
+    <div class="diff-pip" id="pip1"></div>
+    <div class="diff-pip" id="pip2"></div>
+    <div class="diff-pip" id="pip3"></div>
+    <div class="diff-pip" id="pip4"></div>
+  </div>
+
+  <div id="status-text">Druk op START om te beginnen</div>
+
+  <!-- Time flash -->
+  <div id="time-flash"></div>
+
+  <!-- Grid: numpad layout 7,8,9 / 4,5,6 / 1,2,3 → grid indices 0..8 -->
+  <div id="grid">
+    <div class="cell" data-i="0"><span class="cell-key">7</span></div>
+    <div class="cell" data-i="1"><span class="cell-key">8</span></div>
+    <div class="cell" data-i="2"><span class="cell-key">9</span></div>
+    <div class="cell" data-i="3"><span class="cell-key">4</span></div>
+    <div class="cell" data-i="4"><span class="cell-key">5</span></div>
+    <div class="cell" data-i="5"><span class="cell-key">6</span></div>
+    <div class="cell" data-i="6"><span class="cell-key">1</span></div>
+    <div class="cell" data-i="7"><span class="cell-key">2</span></div>
+    <div class="cell" data-i="8"><span class="cell-key">3</span></div>
+  </div>
+
+  <!-- History dots -->
+  <div id="history-row"></div>
+
+  <!-- Buttons -->
+  <div class="btn-row">
+    <button id="start-btn">START</button>
+    <button id="reset-btn" class="">↺ Opnieuw</button>
+  </div>
+
+  <!-- End screen -->
+  <div id="end-screen">
+    <div class="end-score" id="end-score-val"></div>
+    <div class="end-label">punten behaald</div>
+  </div>
+
+  <!-- AI box -->
+  <div id="ai-box">
+    <div class="ai-header">
+      <div class="ai-dot"></div>
+      <span class="ai-label">AI Analyse</span>
+    </div>
+    <div id="ai-text"></div>
+  </div>
+
+  <footer>reactiegrid demo &nbsp;·&nbsp; gebouwd met html / css / js</footer>
+</div>
+
+<script>
+  // ── Config ────────────────────────────────────────────────────────────────
+  const TOTAL_ROUNDS = 10;
+  // Window (ms) the cell stays lit — decreases each round
+  // Round 1: 1800ms → Round 10: 700ms
+  function getWindow(round) {
+    return Math.round(1800 - (round - 1) * (1100 / (TOTAL_ROUNDS - 1)));
+  }
+  // Delay between rounds (ms)
+  const INTER_ROUND = 600;
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let state       = 'idle'; // idle | countdown | active | finished
+  let round       = 0;
+  let score       = 0;
+  let activeCell  = -1;
+  let startTime   = null;
+  let missTimer   = null;
+  let timerAnim   = null;
+  let results     = []; // {ms, hit, round}
+  let lastPrevCell = -1;
+
+  // ── DOM ───────────────────────────────────────────────────────────────────
+  const cells       = document.querySelectorAll('.cell');
+  const statusTxt   = document.getElementById('status-text');
+  const timeFlash   = document.getElementById('time-flash');
+  const startBtn    = document.getElementById('start-btn');
+  const resetBtn    = document.getElementById('reset-btn');
+  const aiBox       = document.getElementById('ai-box');
+  const aiText      = document.getElementById('ai-text');
+  const histRow     = document.getElementById('history-row');
+  const statRound   = document.getElementById('stat-round');
+  const statScore   = document.getElementById('stat-score');
+  const statAvg     = document.getElementById('stat-avg');
+  const progressFill= document.getElementById('progress-fill');
+  const endScreen   = document.getElementById('end-screen');
+  const endScoreVal = document.getElementById('end-score-val');
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function avg(arr) { return arr.reduce((a,b)=>a+b,0)/arr.length; }
+
+  function classifyMs(ms) {
+    if (ms < 250) return 'fast';
+    if (ms < 420) return 'ok';
+    return 'slow';
+  }
+
+  function diffLevel(r) {
+    // 0-1 = easy, 2-4 = medium, 5-7 = hard, 8-9 = very hard
+    if (r <= 2) return 0;
+    if (r <= 4) return 1;
+    if (r <= 6) return 2;
+    if (r <= 8) return 3;
+    return 4;
+  }
+
+  function updatePips(r) {
+    const lvl = diffLevel(r);
+    for (let i = 0; i < 5; i++) {
+      document.getElementById('pip'+i).classList.toggle('on', i <= lvl);
+    }
+  }
+
+  function updateTopBar() {
+    statRound.textContent = round + ' / ' + TOTAL_ROUNDS;
+    statScore.textContent = score;
+    const hitResults = results.filter(r => r.hit);
+    statAvg.textContent = hitResults.length
+      ? Math.round(avg(hitResults.map(r => r.ms))) + ' ms'
+      : '—';
+    progressFill.style.width = (round / TOTAL_ROUNDS * 100) + '%';
+  }
+
+  function addHistDot(hit, ms) {
+    const dot = document.createElement('div');
+    if (!hit) {
+      dot.className = 'hdot hdot-miss';
+      dot.textContent = '✗';
+      dot.title = 'gemist';
+    } else {
+      const cat = classifyMs(ms);
+      dot.className = 'hdot ' + (cat === 'fast' ? 'hdot-hit' : cat === 'ok' ? 'hdot-slow' : 'hdot-miss');
+      dot.textContent = ms < 1000 ? ms : '…';
+      dot.title = ms + ' ms';
+    }
+    histRow.appendChild(dot);
+  }
+
+  function clearActive() {
+    clearTimeout(missTimer);
+    cancelAnimationFrame(timerAnim);
+    cells.forEach(c => {
+      c.classList.remove('active');
+      const bar = c.querySelector('.cell-timer');
+      if (bar) bar.remove();
+    });
+  }
+
+  function flashTime(text, color) {
+    timeFlash.textContent = text;
+    timeFlash.style.color = color;
+    setTimeout(() => { timeFlash.textContent = ''; }, 900);
+  }
+
+  // ── Round logic ───────────────────────────────────────────────────────────
+  function pickCell() {
+    let idx;
+    do { idx = Math.floor(Math.random() * 9); }
+    while (idx === lastPrevCell);
+    return idx;
+  }
+
+  function startRound() {
+    round++;
+    updateTopBar();
+    updatePips(round - 1);
+
+    const win = getWindow(round);
+    const lvlNames = ['Makkelijk','Gemiddeld','Moeilijk','Pittig','Extreem'];
+    const lvl = diffLevel(round - 1);
+    statusTxt.textContent = `Ronde ${round} — ${lvlNames[lvl]} (${win}ms venster)`;
+
+    // Short delay before showing cell
+    const delay = 400 + Math.random() * 600;
+    state = 'countdown';
+    missTimer = setTimeout(() => showCell(win), delay);
+  }
+
+  function showCell(win) {
+    state = 'active';
+    const idx = pickCell();
+    activeCell = idx;
+    lastPrevCell = idx;
+
+    const cell = cells[idx];
+    cell.classList.add('active');
+
+    // Timer bar animation
+    const bar = document.createElement('div');
+    bar.className = 'cell-timer';
+    cell.appendChild(bar);
+    const t0 = performance.now();
+    function animBar(now) {
+      const elapsed = now - t0;
+      const fraction = Math.max(0, 1 - elapsed / win);
+      bar.style.transform = `scaleX(${fraction})`;
+      if (fraction > 0) timerAnim = requestAnimationFrame(animBar);
+    }
+    timerAnim = requestAnimationFrame(animBar);
+
+    startTime = performance.now();
+
+    // Miss timer
+    missTimer = setTimeout(() => {
+      if (state !== 'active') return;
+      registerMiss();
+    }, win);
+  }
+
+  function registerHit(ms) {
+    clearActive();
+    state = 'between';
+
+    const pts = computePoints(ms, round);
+    score += pts;
+    results.push({ ms, hit: true, round });
+    addHistDot(true, ms);
+
+    cells[activeCell].classList.add('hit');
+    setTimeout(() => cells[activeCell].classList.remove('hit'), 400);
+
+    flashTime(`+${pts} pts — ${ms}ms`, 'var(--accent)');
+    updateTopBar();
+    nextOrEnd();
+  }
+
+  function registerMiss() {
+    clearActive();
+    state = 'between';
+
+    results.push({ ms: null, hit: false, round });
+    addHistDot(false, null);
+
+    cells[activeCell].classList.add('missed');
+    setTimeout(() => cells[activeCell].classList.remove('missed'), 500);
+
+    flashTime('Gemist!', 'var(--accent2)');
+    updateTopBar();
+    nextOrEnd();
+  }
+
+  function computePoints(ms, r) {
+    // Base: 100 pts, faster = bonus, later rounds = multiplier
+    const speedBonus = Math.max(0, Math.round((500 - ms) / 5));
+    const multiplier = 1 + (r - 1) * 0.15;
+    return Math.round((100 + speedBonus) * multiplier);
+  }
+
+  function nextOrEnd() {
+    if (round >= TOTAL_ROUNDS) {
+      setTimeout(finishGame, 700);
+    } else {
+      setTimeout(startRound, INTER_ROUND);
+    }
+  }
+
+  // ── End of game ───────────────────────────────────────────────────────────
+  function finishGame() {
+    state = 'finished';
+    statusTxt.textContent = 'Klaar! Bekijk de AI-analyse hieronder 👇';
+    progressFill.style.width = '100%';
+
+    endScoreVal.textContent = score;
+    endScreen.classList.add('visible');
+
+    startBtn.disabled = false;
+    startBtn.textContent = 'OPNIEUW';
+    resetBtn.classList.add('visible');
+
+    showAI();
+  }
+
+  // ── AI feedback ───────────────────────────────────────────────────────────
+  function showAI() {
+    const hits    = results.filter(r => r.hit);
+    const misses  = results.filter(r => !r.hit);
+    const hitMs   = hits.map(r => r.ms);
+    const avgMs   = hitMs.length ? Math.round(avg(hitMs)) : null;
+    const bestMs  = hitMs.length ? Math.min(...hitMs) : null;
+    const hitRate = Math.round((hits.length / TOTAL_ROUNDS) * 100);
+
+    // Trend: compare first 5 vs last 5
+    const first5 = hits.filter(r => r.round <= 5).map(r=>r.ms);
+    const last5  = hits.filter(r => r.round > 5).map(r=>r.ms);
+    const trend  = (first5.length && last5.length)
+      ? (avg(last5) < avg(first5) ? 'beter' : avg(last5) > avg(first5)+20 ? 'slechter' : 'gelijk')
+      : null;
+
+    const lines = [];
+
+    // Opening line based on score
+    if (hitRate === 100) {
+      lines.push(`Perfecte score — je raakte alle 10 vakjes. Dat is uitzonderlijk. 🎯`);
+    } else if (hitRate >= 80) {
+      lines.push(`Sterke prestatie — je raakte ${hits.length} van de 10 vakjes (${hitRate}%). Goed gedaan!`);
+    } else if (hitRate >= 50) {
+      lines.push(`Je raakte ${hits.length} van de 10 vakjes (${hitRate}%). Degelijk — er is ruimte voor verbetering.`);
+    } else {
+      lines.push(`Je miste meer dan de helft van de vakjes (${misses.length}x gemist). Moeilijk, toch? Het venster werd steeds korter.`);
+    }
+
+    // Reaction time
+    if (avgMs) {
+      const cat = classifyMs(avgMs);
+      if (cat === 'fast') {
+        lines.push(`Gemiddelde reactietijd: ${avgMs} ms — dat is razendsnel. Ter vergelijking: de gemiddelde mens reageert op een visuele prikkel in 200–300 ms. Jij zit ver aan de goede kant.`);
+      } else if (cat === 'ok') {
+        lines.push(`Gemiddelde reactietijd: ${avgMs} ms — precies in het menselijk gemiddelde. Je hersenen deden precies wat ze moeten doen: zien → verwerken → klikken.`);
+      } else {
+        lines.push(`Gemiddelde reactietijd: ${avgMs} ms — iets trager dan gemiddeld. Reactietijd hangt sterk af van vermoeidheid, focus en oefening. Probeer het 's ochtends eens!`);
+      }
+    }
+
+    if (bestMs) {
+      lines.push(`Beste reactie: ${bestMs} ms. Dat is je persoonlijk record voor dit spel.`);
+    }
+
+    // Trend
+    if (trend === 'beter') {
+      lines.push(`Opvallend: je reactietijd verbeterde in de tweede helft van het spel. Dat is een klassiek leereffect — je hersenen pasten zich aan terwijl je speelde. Dit heet motorisch leren.`);
+    } else if (trend === 'slechter') {
+      lines.push(`In de tweede helft (moeilijkere rondes) werd je reactietijd gemiddeld trager. Dat is logisch: het venster kromp van 1800ms naar 700ms, waardoor de druk toenam.`);
+    }
+
+    // AI explanation hook
+    lines.push(`\nWat heeft dit met AI te maken?\n\nDeze feedback lijkt intelligent — maar het is gewoon code die kijkt naar getallen en vaste teksten kiest. Echte AI (zoals ChatGPT of ik) doet iets fundamenteel anders: het genereert elk antwoord opnieuw op basis van patronen in enorm veel data. Maar het principe — input → verwerken → output — is hetzelfde. Het verschil zit in de complexiteit van die verwerking.`);
+
+    aiBox.classList.remove('visible');
+    void aiBox.offsetWidth;
+    aiBox.classList.add('visible');
+    typeText(aiText, lines.join('\n\n'));
+  }
+
+  function typeText(el, text, onDone) {
+    el.textContent = '';
+    el.classList.add('typing');
+    const chars = text.split('');
+    const speed = Math.max(8, Math.min(22, 2400 / chars.length));
+    let i = 0;
+    const iv = setInterval(() => {
+      el.textContent += chars[i++];
+      if (i >= chars.length) {
+        clearInterval(iv);
+        el.classList.remove('typing');
+        if (onDone) onDone();
+      }
+    }, speed);
+  }
+
+  // ── Keyboard support (numpad + top-row numbers) ───────────────────────────
+  // Numpad layout maps to grid indices:
+  // 7=0, 8=1, 9=2, 4=3, 5=4, 6=5, 1=6, 2=7, 3=8
+  const keyMap = {
+    'Numpad7': 0, 'Digit7': 0,
+    'Numpad8': 1, 'Digit8': 1,
+    'Numpad9': 2, 'Digit9': 2,
+    'Numpad4': 3, 'Digit4': 3,
+    'Numpad5': 4, 'Digit5': 4,
+    'Numpad6': 5, 'Digit6': 5,
+    'Numpad1': 6, 'Digit1': 6,
+    'Numpad2': 7, 'Digit2': 7,
+    'Numpad3': 8, 'Digit3': 8,
+  };
+
+  document.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    const idx = keyMap[e.code];
+    if (idx === undefined) return;
+    e.preventDefault();
+
+    if (state !== 'active') return;
+
+    // Visual key-press feedback
+    cells[idx].style.transform = 'scale(0.93)';
+    setTimeout(() => { cells[idx].style.transform = ''; }, 100);
+
+    if (idx === activeCell) {
+      const ms = Math.round(performance.now() - startTime);
+      clearTimeout(missTimer);
+      cancelAnimationFrame(timerAnim);
+      registerHit(ms);
+    } else {
+      cells[idx].style.background = '#2a0a15';
+      setTimeout(() => { cells[idx].style.background = ''; }, 200);
+    }
+  });
+
+  // ── Cell clicks ───────────────────────────────────────────────────────────
+  cells.forEach(cell => {
+    cell.addEventListener('click', () => {
+      if (state !== 'active') return;
+      const i = parseInt(cell.dataset.i);
+      if (i === activeCell) {
+        const ms = Math.round(performance.now() - startTime);
+        clearTimeout(missTimer);
+        cancelAnimationFrame(timerAnim);
+        registerHit(ms);
+      } else {
+        // Wrong cell — no penalty but a quick flash
+        cell.style.background = '#2a0a15';
+        setTimeout(() => { cell.style.background = ''; }, 200);
+      }
+    });
+  });
+
+  // ── Start / Reset ─────────────────────────────────────────────────────────
+  startBtn.addEventListener('click', () => {
+    if (state === 'idle' || state === 'finished') {
+      if (state === 'finished') doReset(false);
+      state = 'active'; // prevent double click
+      startBtn.disabled = true;
+      startRound();
+    }
+  });
+
+  resetBtn.addEventListener('click', () => doReset(true));
+
+  function doReset(full) {
+    clearTimeout(missTimer);
+    cancelAnimationFrame(timerAnim);
+    state    = 'idle';
+    round    = 0;
+    score    = 0;
+    results  = [];
+    activeCell = -1;
+    lastPrevCell = -1;
+
+    cells.forEach(c => {
+      c.className = 'cell';
+      c.style.background = '';
+      const bar = c.querySelector('.cell-timer');
+      if (bar) bar.remove();
+    });
+
+    histRow.innerHTML  = '';
+    timeFlash.textContent = '';
+    statusTxt.textContent = 'Druk op START om te beginnen';
+    progressFill.style.width = '0%';
+    endScreen.classList.remove('visible');
+    aiBox.classList.remove('visible');
+
+    for (let i=0;i<5;i++) document.getElementById('pip'+i).classList.remove('on');
+
+    statRound.textContent = '0 / 10';
+    statScore.textContent = '0';
+    statAvg.textContent   = '—';
+
+    startBtn.disabled = false;
+    startBtn.textContent = 'START';
+    if (full) resetBtn.classList.remove('visible');
+  }
+</script>
+</body>
+</html>
