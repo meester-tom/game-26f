@@ -418,6 +418,70 @@
       margin-bottom: 1.5rem;
     }
 
+    /* Name input */
+    #name-row {
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+      margin-bottom: 1.2rem;
+    }
+
+    #name-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    #player-name {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      padding: 0.5rem 0.8rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    #player-name:focus { border-color: var(--accent); }
+    #player-name::placeholder { color: var(--muted); }
+
+    /* Submit button */
+    #submit-btn {
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      padding: 0.7rem 1.4rem;
+      border-radius: 6px;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      transition: all 0.15s;
+      display: none;
+    }
+
+    #submit-btn:hover { background: var(--accent); color: #001a0d; }
+    #submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #submit-btn.visible { display: inline-block; }
+
+    #submit-status {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      text-align: center;
+      min-height: 1.4em;
+      margin-top: 0.5rem;
+      color: var(--muted);
+    }
+
+    #submit-status.ok  { color: var(--accent); }
+    #submit-status.err { color: var(--accent2); }
+
     footer {
       margin-top: 2.5rem;
       text-align: center;
@@ -437,6 +501,12 @@
     <h1>Reactie<span>Grid</span></h1>
     <p class="subtitle">// klik het juiste vakje zo snel mogelijk</p>
   </header>
+
+  <!-- Name input -->
+  <div id="name-row">
+    <span id="name-label">Naam</span>
+    <input id="player-name" type="text" maxlength="30" placeholder="Jouw naam..." autocomplete="off" />
+  </div>
 
   <!-- Top stats -->
   <div class="top-bar">
@@ -489,17 +559,19 @@
   <!-- History dots -->
   <div id="history-row"></div>
 
-  <!-- Buttons -->
-  <div class="btn-row">
-    <button id="start-btn">START</button>
-    <button id="reset-btn" class="">↺ Opnieuw</button>
-  </div>
-
   <!-- End screen -->
   <div id="end-screen">
     <div class="end-score" id="end-score-val"></div>
     <div class="end-label">punten behaald</div>
   </div>
+
+  <!-- Buttons -->
+  <div class="btn-row">
+    <button id="start-btn">START</button>
+    <button id="submit-btn">↑ Score insturen</button>
+    <button id="reset-btn" class="">↺ Opnieuw</button>
+  </div>
+  <div id="submit-status"></div>
 
   <!-- AI box -->
   <div id="ai-box">
@@ -541,6 +613,9 @@
   const timeFlash   = document.getElementById('time-flash');
   const startBtn    = document.getElementById('start-btn');
   const resetBtn    = document.getElementById('reset-btn');
+  const submitBtn   = document.getElementById('submit-btn');
+  const submitStatus= document.getElementById('submit-status');
+  const playerName  = document.getElementById('player-name');
   const aiBox       = document.getElementById('ai-box');
   const aiText      = document.getElementById('ai-text');
   const histRow     = document.getElementById('history-row');
@@ -730,10 +805,47 @@
 
     startBtn.disabled = false;
     startBtn.textContent = 'OPNIEUW';
+    submitBtn.classList.add('visible');
     resetBtn.classList.add('visible');
+    submitStatus.textContent = '';
+    submitStatus.className = '';
 
     showAI();
   }
+
+  // ── Score submit ──────────────────────────────────────────────────────────
+  submitBtn.addEventListener('click', async () => {
+    const name = playerName.value.trim() || 'Anoniem';
+    submitBtn.disabled = true;
+    submitStatus.textContent = 'Bezig met insturen…';
+    submitStatus.className = '';
+
+    const payload = {
+      name: name,
+      score: score,
+      timestamp: Date.now()
+    };
+
+    try {
+      const res = await fetch('https://score-controller.vercel.app/api/submit-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        submitStatus.textContent = `✓ Score van ${name} (${score} pts) ingediend!`;
+        submitStatus.className = 'ok';
+        submitBtn.textContent = '✓ Ingediend';
+      } else {
+        throw new Error('Server error ' + res.status);
+      }
+    } catch (err) {
+      submitStatus.textContent = '✗ Insturen mislukt — controleer je verbinding.';
+      submitStatus.className = 'err';
+      submitBtn.disabled = false;
+    }
+  });
 
   // ── AI feedback ───────────────────────────────────────────────────────────
   function showAI() {
@@ -912,7 +1024,14 @@
 
     startBtn.disabled = false;
     startBtn.textContent = 'START';
-    if (full) resetBtn.classList.remove('visible');
+    if (full) {
+      resetBtn.classList.remove('visible');
+      submitBtn.classList.remove('visible');
+      submitBtn.disabled = false;
+      submitBtn.textContent = '↑ Score insturen';
+      submitStatus.textContent = '';
+      submitStatus.className = '';
+    }
   }
 </script>
 </body>
