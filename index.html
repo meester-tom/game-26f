@@ -1041,13 +1041,16 @@
 
     startBtn.disabled = false;
     startBtn.textContent = 'START';
+
+    // Altijd submit-knop resetten, ook bij snelle herstart
+    submitBtn.classList.remove('visible');
+    submitBtn.disabled = false;
+    submitBtn.textContent = '↑ Score insturen';
+    submitStatus.textContent = '';
+    submitStatus.className = '';
+
     if (full) {
       resetBtn.classList.remove('visible');
-      submitBtn.classList.remove('visible');
-      submitBtn.disabled = false;
-      submitBtn.textContent = '↑ Score insturen';
-      submitStatus.textContent = '';
-      submitStatus.className = '';
     }
   }
 </script>
